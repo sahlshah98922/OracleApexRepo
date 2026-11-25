@@ -1,0 +1,30 @@
+
+trigger:
+  - master
+
+pool:
+  vmImage: 'windows-latest'
+
+steps:
+  - checkout: self
+    displayName: 'Checkout GitHub Repository'
+
+  - powershell: |
+      Write-Host "================================"
+      Write-Host "Oracle APEX Repository Validation"
+      Write-Host "================================"
+
+      Write-Host "Repository: $(Build.Repository.Name)"
+      Write-Host "Branch: $(Build.SourceBranchName)"
+
+      Write-Host "Repository Files:"
+
+      Get-ChildItem -Path "$(Build.SourcesDirectory)" -Recurse -File |
+        ForEach-Object {
+          Write-Host $_.FullName
+        }
+
+      Write-Host "================================"
+      Write-Host "Source Checkout Completed"
+      Write-Host "================================"
+    displayName: 'Verify APEX Source Files'
