@@ -69,7 +69,7 @@ steps:
           throw "APEX export file not found: $file"
         }
 
-        https://oracleapex.com/ords/test_apex_1/_/db-api/stable/apex/workspaces/TEST_APEX_1/applications/63210
+        $url = "$(APEX_HOME_URL)/$(schemaAlias)/_/db-api/stable/apex/workspaces/$(APEX_WORKSPACE)/applications/$(appId)"
 
         $pair = "$(APEX_USERNAME):$(APEX_PASSWORD)"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
@@ -79,24 +79,17 @@ steps:
           Authorization = "Basic $token"
         }
 
-        Write-Host "Deploying APEX Application ID: $(appId)"
+        Write-Host "Deploying Application ID: $(appId)"
         Write-Host "Destination Workspace: $(APEX_WORKSPACE)"
 
         try {
-          $response = Invoke-WebRequest `
-            -Uri $url `
-            -Method PUT `
-            -Headers $headers `
-            -ContentType "application/sql" `
-            -InFile $file `
-            -UseBasicParsing
+          $response = Invoke-WebRequest -Uri $url -Method PUT -Headers $headers -ContentType "application/sql" -InFile $file -UseBasicParsing
 
-          Write-Host "APEX Deployment HTTP Status: $($response.StatusCode)"
-          Write-Host "APEX Deployment completed."
+          Write-Host "HTTP Status: $($response.StatusCode)"
+          Write-Host "Deployment completed."
         }
         catch {
-          Write-Host "APEX Deployment failed."
+          Write-Host "Deployment failed."
           Write-Host $_.Exception.Message
           throw
         }
-
