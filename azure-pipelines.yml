@@ -6,10 +6,19 @@ pool:
   vmImage: windows-latest
 
 variables:
-  appId: '63210'
-  workspace: 'TEST_APEX_1'
-  schemaAlias: 'test_apex_1'
-  exportFile: 'oracle-apex-devsecops/applications/app_63210/f63210.sql'
+- group: APEX-DESTINATION
+
+- name: appId
+  value: '63210'
+
+- name: workspace
+  value: 'TEST_APEX_1'
+
+- name: schemaAlias
+  value: 'test_apex_1'
+
+- name: exportFile
+  value: 'oracle-apex-devsecops/applications/app_63210/f63210.sql'
 
 steps:
   - checkout: self
