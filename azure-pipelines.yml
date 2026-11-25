@@ -69,7 +69,7 @@ steps:
           throw "APEX export file not found: $file"
         }
 
-        $url = "$(APEX_HOME_URL)/_/db-api/stable/apex/workspaces/$(APEX_WORKSPACE)/applications/$(appId)"
+        https://oracleapex.com/ords/test_apex_1/_/db-api/stable/apex/workspaces/TEST_APEX_1/applications/63210
 
         $pair = "$(APEX_USERNAME):$(APEX_PASSWORD)"
         $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
