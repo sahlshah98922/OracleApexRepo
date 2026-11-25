@@ -3,28 +3,46 @@ trigger:
   - master
 
 pool:
-  vmImage: 'windows-latest'
+  vmImage: windows-latest
+
+variables:
+  appId: '63210'
+  workspace: 'TEST_APEX_1'
+  schemaAlias: 'test_apex_1'
+  exportFile: 'oracle-apex-devsecops/applications/app_63210/f63210.sql'
 
 steps:
   - checkout: self
-    displayName: 'Checkout GitHub Repository'
+    displayName: Checkout GitHub Repository
 
   - powershell: |
-      Write-Host "================================"
-      Write-Host "Oracle APEX Repository Validation"
-      Write-Host "================================"
+      $file = "$(Build.SourcesDirectory)/$(exportFile)"
 
-      Write-Host "Repository: $(Build.Repository.Name)"
-      Write-Host "Branch: $(Build.SourceBranchName)"
+      Write-Host "Checking Oracle APEX export..."
 
-      Write-Host "Repository Files:"
+      if (!(Test-Path $file)) {
+          Write-Error "APEX export file not found: $file"
+          exit 1
+      }
 
-      Get-ChildItem -Path "$(Build.SourcesDirectory)" -Recurse -File |
-        ForEach-Object {
-          Write-Host $_.FullName
-        }
+      $size = (Get-Item $file).Length
 
-      Write-Host "================================"
-      Write-Host "Source Checkout Completed"
-      Write-Host "================================"
-    displayName: 'Verify APEX Source Files'
+      if ($size -eq 0) {
+          Write-Error "APEX export file is empty"
+          exit 1
+      }
+
+      Write-Host "Application ID: $(appId)"
+      Write-Host "Workspace: $(workspace)"
+      Write-Host "Export file: $file"
+      Write-Host "File size: $size bytes"
+      Write-Host "Validation successful."
+
+    displayName: Validate APEX Export
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.SourcesDirectory)/oracle-apex-devsecops/applications/app_63210'
+      ArtifactName: 'APEX-Application'
+      publishLocation: Container
+    displayName: Publish APEX Export Artifact
