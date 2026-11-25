@@ -55,3 +55,48 @@ steps:
       ArtifactName: 'APEX-Application'
       publishLocation: Container
     displayName: Publish APEX Export Artifact
+
+
+
+  - task: PowerShell@2
+    displayName: 'Deploy Oracle APEX Application'
+    inputs:
+      targetType: 'inline'
+      script: |
+        $file = "$(Build.SourcesDirectory)/$(exportFile)"
+
+        if (!(Test-Path $file)) {
+          throw "APEX export file not found: $file"
+        }
+
+        $url = "$(APEX_HOME_URL)/_/db-api/stable/apex/workspaces/$(APEX_WORKSPACE)/applications/$(appId)"
+
+        $pair = "$(APEX_USERNAME):$(APEX_PASSWORD)"
+        $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
+        $token = [Convert]::ToBase64String($bytes)
+
+        $headers = @{
+          Authorization = "Basic $token"
+        }
+
+        Write-Host "Deploying APEX Application ID: $(appId)"
+        Write-Host "Destination Workspace: $(APEX_WORKSPACE)"
+
+        try {
+          $response = Invoke-WebRequest `
+            -Uri $url `
+            -Method PUT `
+            -Headers $headers `
+            -ContentType "application/sql" `
+            -InFile $file `
+            -UseBasicParsing
+
+          Write-Host "APEX Deployment HTTP Status: $($response.StatusCode)"
+          Write-Host "APEX Deployment completed."
+        }
+        catch {
+          Write-Host "APEX Deployment failed."
+          Write-Host $_.Exception.Message
+          throw
+        }
+
