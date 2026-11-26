@@ -259,7 +259,7 @@ stages:
             $encodedWorkspace = [uri]::EscapeDataString($workspace)
 
             $schemaAlias = "test_apex_1"
-            $url = "$baseUrl/$schemaAlias/_/db-api/stable/apex/workspaces/$encodedWorkspace/applications/$appId"
+            $url = "$baseUrl/_/db-api/stable/apex/workspaces/$encodedWorkspace/applications/$appId"
 
             Write-Host "Deploying Application ID: $appId"
             Write-Host "Source File: $($file.Name)"
