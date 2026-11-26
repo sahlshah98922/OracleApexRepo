@@ -227,77 +227,32 @@ stages:
         artifactName: APEX-Application
         downloadPath: '$(Pipeline.Workspace)'
 
+    
     - powershell: |
-        $folder = "$(Pipeline.Workspace)/APEX-Application"
+        $url = "$(APEX_HOME_URL)".TrimEnd('/') + "/"
 
-        $files = Get-ChildItem -Path $folder -Recurse -Filter "f*.sql" -File
+        Write-Host "Testing Oracle APEX server connectivity..."
+        Write-Host "Target: $url"
 
-        if (!$files) {
-            throw "No APEX SQL exports found."
+        try {
+            $response = Invoke-WebRequest `
+                -Uri $url `
+                -Method GET `
+                -UseBasicParsing `
+                -ErrorAction Stop
+
+            Write-Host "HTTP Status: $([int]$response.StatusCode)"
+            Write-Host "Server is reachable."
         }
+        catch {
+            Write-Host "Connectivity test result:"
+            Write-Host $_.Exception.Message
 
-        $baseUrl = "$(APEX_HOME_URL)".TrimEnd('/')
-        $workspace = "$(APEX_WORKSPACE)"
-        
-        $pair = "$(APEX_USERNAME):$(APEX_PASSWORD)"
-        $token = [Convert]::ToBase64String(
-            [System.Text.Encoding]::UTF8.GetBytes($pair)
-        )
-
-        $headers = @{
-            Authorization = "Basic $token"
-        }
-
-        foreach ($file in $files) {
-
-            if ($file.BaseName -notmatch '^f(\d+)$') {
-                throw "Invalid APEX export filename: $($file.Name)"
+            if ($_.Exception.Response) {
+                Write-Host "HTTP Status: $([int]$_.Exception.Response.StatusCode)"
             }
 
-            $appId = $Matches[1]
-
-            $encodedWorkspace = [uri]::EscapeDataString($workspace)
-
-            $url = "$baseUrl/_/db-api/stable/apex/workspaces/$encodedWorkspace/applications/$appId"
-
-            Write-Host "Deploying: $($file.Name)"
-            Write-Host "Application ID: $appId"
-            Write-Host "Target Workspace: $workspace"
-
-            try {
-                $response = Invoke-WebRequest `
-                    -Uri $url `
-                    -Method PUT `
-                    -Headers $headers `
-                    -ContentType "application/sql" `
-                    -InFile $file.FullName `
-                    -UseBasicParsing `
-                    -ErrorAction Stop
-
-                Write-Host "HTTP Status: $([int]$response.StatusCode)"
-                Write-Host "Deployment completed for App ID: $appId"
-            }
-            catch {
-                Write-Host "Deployment failed: $($file.Name)"
-                Write-Host "Error: $($_.Exception.Message)"
-
-                if ($_.Exception.Response) {
-                    $resp = $_.Exception.Response
-                    Write-Host "HTTP Status: $([int]$resp.StatusCode)"
-
-                    $reader = New-Object System.IO.StreamReader(
-                        $resp.GetResponseStream()
-                    )
-                    Write-Host "Oracle Response:"
-                    Write-Host $reader.ReadToEnd()
-                    $reader.Close()
-                }
-
-                throw
-            }
+            throw
         }
-
-        Write-Host "All APEX deployments completed."
-
-      displayName: Deploy Oracle APEX Applications
+      displayName: Test Oracle APEX Connectivity
 
