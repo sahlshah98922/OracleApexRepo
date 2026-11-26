@@ -113,40 +113,190 @@
 #   #       }
   
 
+# trigger:
+#   - master
+
+# pool:
+#   vmImage: windows-latest
+
+# steps:
+#   - checkout: self
+#     displayName: Checkout GitHub Repository
+
+#   - powershell: |
+#       $folder = "$(Build.SourcesDirectory)/oracle-apex-devsecops/applications"
+
+#       $files = Get-ChildItem -Path $folder -Recurse -Filter "f*.sql" -File
+
+#       if (!$files) {
+#           throw "No APEX export files found."
+#       }
+
+#       foreach ($file in $files) {
+#           if ($file.Length -eq 0) {
+#               throw "Empty export file: $($file.FullName)"
+#           }
+
+#           Write-Host "Validated: $($file.Name)"
+#       }
+
+#       Write-Host "Total APEX exports: $($files.Count)"
+
+#     displayName: Validate APEX Exports
+
+#   - task: PublishBuildArtifacts@1
+#     displayName: Publish APEX Export Artifact
+#     inputs:
+#       PathtoPublish: '$(Build.SourcesDirectory)/oracle-apex-devsecops/applications'
+#       ArtifactName: 'APEX-Application'
+#       publishLocation: Container
+
+
 trigger:
   - master
 
 pool:
   vmImage: windows-latest
 
-steps:
-  - checkout: self
-    displayName: Checkout GitHub Repository
+variables:
+  - group: APEX-DESTINATION
 
-  - powershell: |
-      $folder = "$(Build.SourcesDirectory)/oracle-apex-devsecops/applications"
+stages:
 
-      $files = Get-ChildItem -Path $folder -Recurse -Filter "f*.sql" -File
+# =========================
+# CI STAGE
+# =========================
+- stage: CI
+  displayName: APEX Continuous Integration
 
-      if (!$files) {
-          throw "No APEX export files found."
-      }
+  jobs:
+  - job: Build
+    displayName: Validate and Publish APEX Export
 
-      foreach ($file in $files) {
-          if ($file.Length -eq 0) {
-              throw "Empty export file: $($file.FullName)"
-          }
+    steps:
+    - checkout: self
+      displayName: Checkout GitHub Repository
 
-          Write-Host "Validated: $($file.Name)"
-      }
+    - powershell: |
+        $folder = "$(Build.SourcesDirectory)/oracle-apex-devsecops/applications"
 
-      Write-Host "Total APEX exports: $($files.Count)"
+        $files = Get-ChildItem -Path $folder -Recurse -Filter "f*.sql" -File
 
-    displayName: Validate APEX Exports
+        if (!$files) {
+            throw "No APEX export files found."
+        }
 
-  - task: PublishBuildArtifacts@1
-    displayName: Publish APEX Export Artifact
-    inputs:
-      PathtoPublish: '$(Build.SourcesDirectory)/oracle-apex-devsecops/applications'
-      ArtifactName: 'APEX-Application'
-      publishLocation: Container
+        foreach ($file in $files) {
+            if ($file.Length -eq 0) {
+                throw "Empty export file: $($file.FullName)"
+            }
+
+            Write-Host "Validated: $($file.Name)"
+        }
+
+        Write-Host "Total APEX exports: $($files.Count)"
+
+      displayName: Validate APEX Exports
+
+    - task: PublishBuildArtifacts@1
+      displayName: Publish APEX Export Artifact
+      inputs:
+        PathtoPublish: '$(Build.SourcesDirectory)/oracle-apex-devsecops/applications'
+        ArtifactName: 'APEX-Application'
+        publishLocation: Container
+
+
+# =========================
+# CD STAGE
+# =========================
+- stage: CD
+  displayName: APEX Continuous Deployment
+  dependsOn: CI
+
+  jobs:
+  - job: Deploy
+    displayName: Import APEX Applications
+
+    steps:
+
+    - task: DownloadBuildArtifacts@0
+      displayName: Download APEX Artifact
+      inputs:
+        buildType: current
+        downloadType: single
+        artifactName: APEX-Application
+        downloadPath: '$(Pipeline.Workspace)'
+
+    - powershell: |
+
+        $folder = "$(Pipeline.Workspace)/APEX-Application"
+
+        $files = Get-ChildItem -Path $folder -Recurse -Filter "f*.sql" -File
+
+        if (!$files) {
+            throw "No APEX SQL exports found in artifact."
+        }
+
+        $baseUrl = "$(APEX_HOME_URL)".TrimEnd('/')
+        $workspace = "$(APEX_WORKSPACE)"
+
+        $pair = "$(APEX_USERNAME):$(APEX_PASSWORD)"
+        $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
+        $token = [Convert]::ToBase64String($bytes)
+
+        $headers = @{
+            Authorization = "Basic $token"
+        }
+
+        foreach ($file in $files) {
+
+            if ($file.BaseName -notmatch '^f(\d+)$') {
+                throw "Cannot extract Application ID from $($file.Name)"
+            }
+
+            $appId = $Matches[1]
+
+            $encodedWorkspace = [uri]::EscapeDataString($workspace)
+
+            $schemaAlias = "test_apex_1"
+            $url = "$baseUrl/$schemaAlias/_/db-api/stable/apex/workspaces/$encodedWorkspace/applications/$appId"
+
+            Write-Host "Deploying Application ID: $appId"
+            Write-Host "Source File: $($file.Name)"
+
+            try {
+                $response = Invoke-WebRequest `
+                    -Uri $url `
+                    -Method PUT `
+                    -Headers $headers `
+                    -ContentType "application/sql" `
+                    -InFile $file.FullName `
+                    -UseBasicParsing
+
+                Write-Host "HTTP Status: $([int]$response.StatusCode)"
+                Write-Host "Application $appId deployment successful."
+            }
+            catch {
+                Write-Host "Deployment failed for Application ID: $appId"
+
+                $resp = $_.Exception.Response
+
+                if ($resp) {
+                    Write-Host "HTTP Status: $([int]$resp.StatusCode)"
+
+                    $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
+                    Write-Host $reader.ReadToEnd()
+                    $reader.Close()
+                }
+                else {
+                    Write-Host $_.Exception.Message
+                }
+
+                throw
+            }
+        }
+
+        Write-Host "All APEX deployments completed."
+
+      displayName: Deploy Oracle APEX Applications
+
