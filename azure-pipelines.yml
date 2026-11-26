@@ -2,7 +2,7 @@ trigger:
   - master
 
 pool:
-  vmImage: APEX-Windows-Pool
+  name: APEX-Windows-Pool
 
 variables:
   - group: APEX-DESTINATION
